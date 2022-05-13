@@ -1,0 +1,68 @@
+#define Enable 8
+#define Step  5
+#define Dir   2
+#define Encoder 7
+#define ALM 3
+
+void pin_INI() {
+  pinMode(Enable, OUTPUT);
+  pinMode(Step, OUTPUT);
+  pinMode(Dir, OUTPUT);
+  digitalWrite(Enable, LOW);
+}
+
+void timer_INI() {
+  TCCR2A = 0;                    //set các bit TCCR2A về 0
+  TCCR2B = 0;                    //set các bit TCCR2B về 0
+  TCCR2B |= (1 << CS20);         //set bit CS20 trong TCCR2B lên 1
+  OCR2A = 39;                    //set số bit cần đếm trong timer
+  TCCR2A |= (1 << WGM21);        //set bit WGM21 trong TCCR2A lên 1
+  TIMSK2 |= (1 << OCIE2A);       //set bit OCIE2A trong TIMSK2 lên 1
+}
+
+int count = 0, rpm = 0;
+unsigned long lastTime = 0;
+int8_t Dir_M1;
+volatile int16_t Count_timer1;
+volatile int32_t Step1;
+int16_t Count_TOP1, Count_BOT1;
+ISR(TIMER2_COMPA_vect) {     //hàm ngắt
+  if(Dir_M1 > 0){
+    Count_timer1++;
+    if(Count_timer1 <= Count_TOP1) PORTD |= 0b00100000;
+    else PORTD &= 0b11011111;
+    if(Count_timer1 > Count_BOT1){
+      Count_timer1 = 0;
+      Step1++;
+    }
+  }
+}
+void Speed_M1(int16_t x) {      //set tốc độ cho motor X
+    Dir_M1 = 1;
+    PORTD |= 0b00000100;
+    Count_BOT1 = abs(x);
+    Count_TOP1 = abs(x)/2;
+}
+
+void setup() {
+  Serial.begin(9600);
+  pin_INI();
+  timer_INI();
+  delay(500);
+}
+
+void read_encoder(){
+  if(digitalRead(Encoder) == LOW){
+    count++;
+  }
+  if(millis()-lastTime >=1000){
+    lastTime += 500;
+    rpm = count;
+    count=0;
+    Serial.println(rpm);
+  }
+}
+void loop() {
+  Speed_M1(50);
+  read_encoder();
+}
